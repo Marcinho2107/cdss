@@ -1,72 +1,129 @@
-#
-# This is the user-interface definition of a Shiny web application. You can
-# run the application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
 library(shiny)
 library(shinydashboard)
 
-
-
-# ---------------------------------------------------------------
-# UI — Dashboard Layout
-# ---------------------------------------------------------------
-
-shinyDashboardStructure <- a("Shiny Dashboard Structure", href="https://rstudio.github.io/shinydashboard/structure.html")
-shinyTutorial <- a("Shiny Tutorial", href="https://shiny.posit.co/r/getstarted/shiny-basics/lesson1/")
-icons <- a("Icon-Browser", href="https://fontawesome.com")
-
-dashboardPage(
-  dashboardHeader(title = "Antibiotika Entscheidungshilfe"),
+ui <- dashboardPage(
+  
+  dashboardHeader(title = "Travel CDSS"),
+  
   dashboardSidebar(
+    
     sidebarMenu(
-      menuItem("Eingabe", tabName = "eingabe", icon = icon("stethoscope")),
-      menuItem("Infos", tabName = "infos", icon = icon("circle-info"))
+      
+      menuItem("CDSS", tabName = "cdss", icon = icon("stethoscope")),
+      menuItem("Infos", tabName = "info", icon = icon("book"))
+      
     )
   ),
+  
   dashboardBody(
+    
     tabItems(
       
-      # ---------------- CDSS-Tab ----------------
-      tabItem(tabName = "eingabe",
-              h2("Patientendaten eingeben"),
+      # =========================
+      # CDSS TAB
+      # =========================
+      tabItem(tabName = "cdss",
               
-              numericInput("age", "Alter (Jahre):", min = 0, max = 120, value = 35),
-              numericInput("temp", "Temperatur (°C):", min = 34, max = 42, value = 37.8),
-              numericInput("crp", "CRP (mg/L):", min = 0, max = 300, value = 15),
-              #numericInput("duration", "Dauer Symptome (Tage):", min = 0, max = 30, value = 3),
-              sliderInput("duration", "Dauer Symptome (Tage):", min = 0, max = 30, value = 3),
+              fluidRow(
+                
+                box(
+                  width = 4,
+                  title = "Landauswahl",
+                  status = "primary",
+                  solidHeader = TRUE,
+                  
+                  selectizeInput(
+                    "country",
+                    "Reiseziel",
+                    choices = NULL,
+                    options = list(
+                      placeholder = "Land eingeben (z.B. Aus → Austria)",
+                      maxOptions = 10
+                    )
+                  ),
+                  
+                  actionButton(
+                    "confirm_country",
+                    "Land bestätigen",
+                    icon = icon("check"),
+                    class = "btn-primary"
+                  )
+                ),
+                
+                box(
+                  width = 8,
+                  title = "CDSS Output",
+                  status = "primary",
+                  solidHeader = TRUE,
+                  
+                  h4("Bitte Land auswählen und bestätigen")
+                )
+              ),
               
-              checkboxGroupInput("symptoms", "Symptome:",
-                                 choices = c("Husten", "Halsschmerzen", "Ohrenschmerzen", "Atemnot")),
-              
-              checkboxInput("risk", "Risikofaktoren vorhanden?", FALSE),
-              
-              actionButton("calculate", "Empfehlung berechnen", icon = icon("play")),
-              
-              h2("Empfehlung"),
-              verbatimTextOutput("resultText"),
-              uiOutput("ampelBox")
+              fluidRow(
+                
+                box(
+                  width = 4,
+                  title = "Reiseimpfungen",
+                  status = "success",
+                  solidHeader = TRUE,
+                  tableOutput("vaccines_table")
+                ),
+                
+                box(
+                  width = 4,
+                  title = "Nicht-impfbare Krankheiten",
+                  status = "warning",
+                  solidHeader = TRUE,
+                  tableOutput("diseases_table")
+                ),
+                
+                box(
+                  width = 4,
+                  title = "First Aid / Packing List",
+                  status = "info",
+                  solidHeader = TRUE,
+                  tableOutput("packing_table")
+                )
+              )
       ),
       
-      # ---------------- Info-Tab ----------------
-      tabItem(tabName = "infos",
-              h2("Links and Infos"),
+      # =========================
+      # INFO TAB
+      # =========================
+      tabItem(tabName = "info",
+              
               fluidRow(
-                # A static valueBox
-                box( title = "Link", shinyDashboardStructure),
-                box(  title = "Link", shinyTutorial),
-                box(  title = "Link", icons)
                 
+                box(
+                  width = 12,
+                  title = "CDSS Informationen",
+                  status = "primary",
+                  solidHeader = TRUE,
+                  
+                  h4("Travel Medicine CDSS"),
+                  p("Dieses System basiert auf CDC-Reisedaten und unterstützt klinische Entscheidungen."),
+                  
+                  tags$ul(
+                    tags$li("Reiseimpfungen nach CDC"),
+                    tags$li("Nicht impfpräventable Krankheiten"),
+                    tags$li("First Aid & Packing Empfehlungen")
+                  )
+                )
+              ),
+              
+              fluidRow(
                 
+                box(
+                  width = 12,
+                  title = "Datenquellen",
+                  status = "info",
+                  solidHeader = TRUE,
+                  
+                  p("CDC Scraper Module werden nach Landauswahl geladen.")
+                )
               )
       )
-      
     )
   )
 )
-#ss
