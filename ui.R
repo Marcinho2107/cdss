@@ -6,8 +6,9 @@ dashboardPage(
     sidebarMenu(
       menuItem("CDSS", tabName = "cdss", icon = icon("stethoscope")),
       menuItem("CDC Diseases / Recommendations", tabName = "diseases", icon = icon("virus")),
-      menuItem("First Aid / Packing List", tabName = "packing", icon = icon("briefcase-medical")),
-      menuItem("Infos", tabName = "info", icon = icon("book"))
+      menuItem("Non-Vaccine-Preventable Diseases", tabName = "non_vaccine", icon = icon("briefcase-medical")),
+      menuItem("First Aid / Packing List", tabName = "packing", icon = icon("kit-medical")),
+      menuItem("Information", tabName = "info", icon = icon("book"))
     )
   ),
   
@@ -16,29 +17,25 @@ dashboardPage(
       
       tabItem(
         tabName = "cdss",
-        
         fluidRow(
-          
           box(
             width = 4,
-            title = "Landauswahl",
+            title = "Destination Selection",
             status = "primary",
             solidHeader = TRUE,
-            
             selectizeInput(
               "country",
-              "Reiseziel",
+              "Travel Destination",
               choices = NULL,
               selected = NULL,
               options = list(
-                placeholder = "Land eingeben",
+                placeholder = "Enter destination",
                 maxOptions = 1000
               )
             ),
-            
             actionButton(
               "confirm_country",
-              "Land bestätigen",
+              "Confirm Destination",
               icon = icon("check"),
               class = "btn-primary"
             )
@@ -51,16 +48,13 @@ dashboardPage(
             solidHeader = TRUE,
             uiOutput("cdss_output")
           )
-          
         ),
         
         uiOutput("country_dependent_ui")
-        
       ),
       
       tabItem(
         tabName = "diseases",
-        
         fluidRow(
           box(
             width = 12,
@@ -73,55 +67,52 @@ dashboardPage(
       ),
       
       tabItem(
-        tabName = "packing",
-        
+        tabName = "non_vaccine",
         fluidRow(
           box(
             width = 12,
-            title = "First Aid / Packing List",
+            title = uiOutput("non_vaccine_box_title"),
+            status = "primary",
+            solidHeader = TRUE,
+            DTOutput("non_vaccine_table")
+          )
+        )
+      ),
+      
+      tabItem(
+        tabName = "packing",
+        fluidRow(
+          box(
+            width = 12,
+            title = uiOutput("packing_box_title"),
             status = "info",
             solidHeader = TRUE,
-            tableOutput("packing_table")
+            p("Check all items that the traveler already has at home."),
+            uiOutput("packing_checklist"),
+            br(),
+            downloadButton(
+              "download_packing_list",
+              "Generate Travel Health Kit",
+              class = "btn-primary"
+            )
           )
         )
       ),
       
       tabItem(
         tabName = "info",
-        
         fluidRow(
-          
           box(
             width = 12,
-            title = "CDSS Informationen",
+            title = "CDSS Information",
             status = "primary",
             solidHeader = TRUE,
-            
             h4("Travel Medicine CDSS"),
-            p("Dieses System basiert auf CDC-Reisedaten."),
-            uiOutput("data_source_info"),
-            
-            br(),
-            
-            actionButton(
-              "update_backup_csv",
-              "Backup CSVs aktualisieren",
-              icon = icon("sync"),
-              class = "btn-warning"
-            ),
-            
-            br(),
-            br(),
-            
-            uiOutput("update_status")
-            
+            p("This system is based on CDC travel data."),
+            uiOutput("data_source_info")
           )
-          
         )
       )
-      
     )
-    
   )
-  
 )

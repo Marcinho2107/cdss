@@ -9,8 +9,8 @@ server <- function(input, output, session) {
   
   selected_vaccinations <- reactiveVal(
     tibble(
-      Impfung = character(),
-      Datum = as.Date(character())
+      Vaccination = character(),
+      Date = as.Date(character())
     )
   )
   
@@ -20,17 +20,13 @@ server <- function(input, output, session) {
   })
   
   country_recommendations <- eventReactive(input$confirm_country, {
-    
     req(input$country)
     
     tryCatch({
-      
       scraped <- scrape_country_recommendations(input$country)
-      attr(scraped, "source") <- "CDC Webscraper"
+      attr(scraped, "source") <- "CDC Web Scraper"
       scraped
-      
     }, error = function(e) {
-      
       fallback <- cdc_recommendations_fallback %>%
         filter(country == input$country)
       
@@ -39,8 +35,45 @@ server <- function(input, output, session) {
     })
   })
   
-  observeEvent(country_recommendations(), {
+  non_vaccine_diseases <- eventReactive(input$confirm_country, {
+    req(input$country)
     
+    tryCatch({
+      data <- scrape_non_vaccine_diseases(input$country)
+      attr(data, "source") <- "CDC Web Scraper"
+      data
+    }, error = function(e) {
+      fallback <- non_vaccine_fallback %>%
+        filter(country == input$country) %>%
+        transmute(
+          `Disease Name` = disease,
+          `Common ways the disease spreads` = transmission,
+          Advice = advice
+        )
+      
+      attr(fallback, "source") <- paste("Fallback CSV:", e$message)
+      fallback
+    })
+  })
+  
+  packing_list <- eventReactive(input$confirm_country, {
+    req(input$country)
+    
+    tryCatch({
+      data <- scrape_packing_list(input$country)
+      attr(data, "source") <- "CDC Web Scraper"
+      data
+    }, error = function(e) {
+      fallback <- packing_fallback %>%
+        filter(country == input$country) %>%
+        select(country, category, item)
+      
+      attr(fallback, "source") <- paste("Fallback CSV:", e$message)
+      fallback
+    })
+  })
+  
+  observeEvent(country_recommendations(), {
     recs <- country_recommendations()
     
     available_vaccines <- recs %>%
@@ -59,25 +92,24 @@ server <- function(input, output, session) {
     
     selected_vaccinations(
       tibble(
-        Impfung = character(),
-        Datum = as.Date(character())
+        Vaccination = character(),
+        Date = as.Date(character())
       )
     )
   })
   
   observeEvent(input$add_vaccine, {
-    
     req(input$selected_vaccines)
     req(input$vaccination_date)
     
     new_row <- tibble(
-      Impfung = input$selected_vaccines,
-      Datum = as.Date(input$vaccination_date)
+      Vaccination = input$selected_vaccines,
+      Date = as.Date(input$vaccination_date)
     )
     
     selected_vaccinations(
       bind_rows(selected_vaccinations(), new_row) %>%
-        distinct(Impfung, .keep_all = TRUE)
+        distinct(Vaccination, .keep_all = TRUE)
     )
     
     updateSelectizeInput(
@@ -88,7 +120,6 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$delete_vaccine_row, {
-    
     row_to_delete <- input$delete_vaccine_row
     df <- selected_vaccinations()
     
@@ -102,34 +133,30 @@ server <- function(input, output, session) {
     
     tagList(
       fluidRow(
-        
         box(
           width = 4,
-          title = "Reiseimpfung auswählen",
+          title = "Select Vaccination",
           status = "success",
           solidHeader = TRUE,
-          
           selectizeInput(
             "selected_vaccines",
-            "Impfung",
+            "Vaccination",
             choices = NULL,
             selected = NULL,
             multiple = FALSE,
             options = list(
-              placeholder = "Impfung eingeben",
+              placeholder = "Enter vaccination",
               maxOptions = 1000
             )
           ),
-          
           dateInput(
             "vaccination_date",
-            "Impfdatum",
+            "Vaccination Date",
             value = Sys.Date()
           ),
-          
           actionButton(
             "add_vaccine",
-            "Impfung hinzufügen",
+            "Add Vaccination",
             icon = icon("plus"),
             class = "btn-success"
           )
@@ -137,7 +164,7 @@ server <- function(input, output, session) {
         
         box(
           width = 8,
-          title = "Ausgewählte Impfungen",
+          title = "Selected Vaccinations",
           status = "success",
           solidHeader = TRUE,
           DTOutput("vaccines_table")
@@ -150,14 +177,20 @@ server <- function(input, output, session) {
     req(confirmed_country())
     
     recs <- country_recommendations()
+    nvp <- non_vaccine_diseases()
+    pack <- packing_list()
     
     tagList(
-      h4("Ausgewähltes Reiseziel:"),
+      h4("Selected Destination:"),
       strong(confirmed_country()),
       br(),
       br(),
-      p(paste("Anzahl geladener CDC-Empfehlungen:", nrow(recs))),
-      p(paste("Datenquelle:", attr(recs, "source")))
+      p(paste("CDC Recommendations Loaded:", nrow(recs))),
+      p(paste("Non-Vaccine-Preventable Diseases:", nrow(nvp))),
+      p(paste("Packing List Items:", nrow(pack))),
+      p(paste("CDC Source:", attr(recs, "source"))),
+      p(paste("Non-Vaccine Source:", attr(nvp, "source"))),
+      p(paste("Packing List Source:", attr(pack, "source")))
     )
   })
   
@@ -173,8 +206,161 @@ server <- function(input, output, session) {
       select(disease, recommendation)
   })
   
-  output$vaccines_table <- renderDT({
+  output$non_vaccine_box_title <- renderUI({
+    req(confirmed_country())
+    paste("Non-Vaccine-Preventable Diseases -", confirmed_country())
+  })
+  
+  output$non_vaccine_table <- renderDT({
+    req(non_vaccine_diseases())
     
+    datatable(
+      non_vaccine_diseases(),
+      rownames = FALSE,
+      options = list(
+        dom = "t",
+        paging = FALSE,
+        ordering = TRUE,
+        autoWidth = TRUE,
+        scrollX = TRUE
+      )
+    )
+  })
+  
+  output$packing_box_title <- renderUI({
+    req(confirmed_country())
+    paste("First Aid / Packing List -", confirmed_country())
+  })
+  
+  output$packing_checklist <- renderUI({
+    req(packing_list())
+    
+    df <- packing_list() %>%
+      filter(!is.na(item), item != "") %>%
+      mutate(
+        checkbox_id = map2_chr(category, item, make_packing_id)
+      )
+    
+    if (nrow(df) == 0) {
+      return(
+        p("No packing list data was found for this destination.")
+      )
+    }
+    
+    categories <- unique(df$category)
+    
+    tagList(
+      lapply(categories, function(cat) {
+        
+        items_cat <- df %>% filter(category == cat)
+        
+        tagList(
+          h4(cat, style = "color:#0073b7; margin-top:20px; font-weight:bold;"),
+          
+          lapply(seq_len(nrow(items_cat)), function(i) {
+            checkboxInput(
+              inputId = items_cat$checkbox_id[i],
+              label = items_cat$item[i],
+              value = FALSE
+            )
+          })
+        )
+      })
+    )
+  })
+  
+  get_packing_status <- reactive({
+    req(packing_list())
+    
+    df <- packing_list() %>%
+      filter(!is.na(item), item != "") %>%
+      mutate(
+        checkbox_id = map2_chr(category, item, make_packing_id),
+        available = map_lgl(checkbox_id, ~ isTRUE(input[[.x]]))
+      )
+    
+    df
+  })
+  
+  output$download_packing_list <- downloadHandler(
+    
+    filename = function() {
+      paste0(
+        "Travel_Health_Kit_",
+        str_replace_all(confirmed_country(), " ", "_"),
+        ".html"
+      )
+    },
+    
+    content = function(file) {
+      req(confirmed_country())
+      
+      df <- get_packing_status()
+      
+      available <- df %>%
+        filter(available == TRUE)
+      
+      missing <- df %>%
+        filter(available == FALSE)
+      
+      make_section <- function(data, title) {
+        if (nrow(data) == 0) {
+          return(paste0("<h2>", title, "</h2><p>No entries.</p>"))
+        }
+        
+        html <- paste0("<h2>", title, "</h2>")
+        
+        for (cat in unique(data$category)) {
+          items <- data %>%
+            filter(category == cat) %>%
+            pull(item)
+          
+          html <- paste0(
+            html,
+            "<h3>", htmlEscape(cat), "</h3>",
+            "<ul>",
+            paste0("<li>", htmlEscape(items), "</li>", collapse = ""),
+            "</ul>"
+          )
+        }
+        
+        html
+      }
+      
+      html <- paste0(
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        "<meta charset='UTF-8'>",
+        "<title>Travel Health Kit</title>",
+        "<style>",
+        "body { font-family: Arial, sans-serif; margin: 35px; color: #222; }",
+        "h1 { color: #0073b7; border-bottom: 3px solid #0073b7; padding-bottom: 10px; }",
+        "h2 { color: #333; margin-top: 30px; }",
+        "h3 { color: #0073b7; margin-bottom: 5px; }",
+        "li { margin-bottom: 6px; }",
+        ".note { background: #f3f8fc; border-left: 4px solid #0073b7; padding: 10px; margin: 20px 0; }",
+        "@media print { button { display: none; } }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<h1>Travel Health Kit - ", htmlEscape(confirmed_country()), "</h1>",
+        "<div class='note'>",
+        "This list is based on the CDC Packing List. Checked items are already available at home; unchecked items should still be obtained.",
+        "</div>",
+        make_section(missing, "Items Still Needed"),
+        make_section(available, "Already Available"),
+        "<br><br>",
+        "<button onclick='window.print()'>Print / Save as PDF</button>",
+        "</body>",
+        "</html>"
+      )
+      
+      writeLines(html, file, useBytes = TRUE)
+    }
+  )
+  
+  output$vaccines_table <- renderDT({
     df <- selected_vaccinations()
     
     if (nrow(df) == 0) {
@@ -189,8 +375,8 @@ server <- function(input, output, session) {
     
     df <- df %>%
       mutate(
-        Datum = format(Datum, "%d.%m.%Y"),
-        Löschen = sprintf(
+        Date = format(Date, "%d.%m.%Y"),
+        Delete = sprintf(
           '<button class="btn btn-danger btn-xs" onclick="Shiny.setInputValue(\'delete_vaccine_row\', %d, {priority: \'event\'})">❌</button>',
           seq_len(n())
         )
@@ -208,66 +394,14 @@ server <- function(input, output, session) {
     )
   })
   
-  output$packing_table <- renderTable({
-    data.frame(
-      Kategorie = c("Medikamente", "Mückenschutz", "Dokumente"),
-      Empfehlung = c(
-        "Reiseapotheke mitführen",
-        "Repellent und Moskitonetz",
-        "Impfausweis / Versicherung"
-      )
-    )
-  })
-  
-  observeEvent(input$update_backup_csv, {
-    
-    output$update_status <- renderUI({
-      p("Update läuft... bitte warten.")
-    })
-    
-    tryCatch({
-      
-      updated_data <- load_cdc_data()
-      
-      countries <<- updated_data$countries
-      cdc_recommendations_fallback <<- updated_data$recommendations
-      
-      updateSelectizeInput(
-        session,
-        "country",
-        choices = countries$country,
-        selected = NULL,
-        server = TRUE
-      )
-      
-      output$update_status <- renderUI({
-        tagList(
-          strong("Backup CSVs erfolgreich aktualisiert."),
-          br(),
-          p(paste("Länder geladen:", nrow(updated_data$countries))),
-          p(paste("Empfehlungen geladen:", nrow(updated_data$recommendations))),
-          p(paste("Diseases geladen:", nrow(updated_data$diseases)))
-        )
-      })
-      
-    }, error = function(e) {
-      
-      output$update_status <- renderUI({
-        tagList(
-          strong("Update fehlgeschlagen."),
-          br(),
-          p(e$message)
-        )
-      })
-    })
-  })
-  
   output$data_source_info <- renderUI({
     tagList(
-      p("Aktuelle Datenquelle: CDC Webscraper mit CSV-Fallback"),
-      p(paste("Länder geladen:", nrow(countries))),
-      p(paste("Fallback-Empfehlungen geladen:", nrow(cdc_recommendations_fallback))),
-      p(paste("Impfungen geladen:", nrow(vaccines_master)))
+      p("Current data source: CDC web scraper with CSV fallback."),
+      p(paste("Countries loaded:", nrow(countries))),
+      p(paste("Fallback recommendations loaded:", nrow(cdc_recommendations_fallback))),
+      p(paste("Vaccinations loaded:", nrow(vaccines_master))),
+      p(paste("Non-vaccine fallback rows loaded:", nrow(non_vaccine_fallback))),
+      p(paste("Packing-list fallback rows loaded:", nrow(packing_fallback)))
     )
   })
 }
