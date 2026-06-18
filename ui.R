@@ -5,6 +5,8 @@ dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("CDSS", tabName = "cdss", icon = icon("stethoscope")),
+      menuItem("CDC Diseases / Recommendations", tabName = "diseases", icon = icon("virus")),
+      menuItem("First Aid / Packing List", tabName = "packing", icon = icon("briefcase-medical")),
       menuItem("Infos", tabName = "info", icon = icon("book"))
     )
   ),
@@ -16,6 +18,7 @@ dashboardPage(
         tabName = "cdss",
         
         fluidRow(
+          
           box(
             width = 4,
             title = "Landauswahl",
@@ -48,45 +51,15 @@ dashboardPage(
             solidHeader = TRUE,
             uiOutput("cdss_output")
           )
+          
         ),
         
-        fluidRow(
-          box(
-            width = 4,
-            title = "Reiseimpfungen auswählen",
-            status = "success",
-            solidHeader = TRUE,
-            
-            selectizeInput(
-              "selected_vaccines",
-              "Impfungen",
-              choices = NULL,
-              multiple = TRUE,
-              options = list(
-                placeholder = "Impfung eingeben",
-                maxOptions = 1000
-              )
-            ),
-            
-            uiOutput("vaccination_dates")
-          ),
-          
-          box(
-            width = 4,
-            title = "Ausgewählte Impfungen",
-            status = "success",
-            solidHeader = TRUE,
-            tableOutput("vaccines_table")
-          ),
-          
-          box(
-            width = 4,
-            title = "First Aid / Packing List",
-            status = "info",
-            solidHeader = TRUE,
-            tableOutput("packing_table")
-          )
-        ),
+        uiOutput("country_dependent_ui")
+        
+      ),
+      
+      tabItem(
+        tabName = "diseases",
         
         fluidRow(
           box(
@@ -100,9 +73,24 @@ dashboardPage(
       ),
       
       tabItem(
+        tabName = "packing",
+        
+        fluidRow(
+          box(
+            width = 12,
+            title = "First Aid / Packing List",
+            status = "info",
+            solidHeader = TRUE,
+            tableOutput("packing_table")
+          )
+        )
+      ),
+      
+      tabItem(
         tabName = "info",
         
         fluidRow(
+          
           box(
             width = 12,
             title = "CDSS Informationen",
@@ -111,10 +99,29 @@ dashboardPage(
             
             h4("Travel Medicine CDSS"),
             p("Dieses System basiert auf CDC-Reisedaten."),
-            uiOutput("data_source_info")
+            uiOutput("data_source_info"),
+            
+            br(),
+            
+            actionButton(
+              "update_backup_csv",
+              "Backup CSVs aktualisieren",
+              icon = icon("sync"),
+              class = "btn-warning"
+            ),
+            
+            br(),
+            br(),
+            
+            uiOutput("update_status")
+            
           )
+          
         )
       )
+      
     )
+    
   )
+  
 )

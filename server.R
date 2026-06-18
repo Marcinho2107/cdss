@@ -7,6 +7,13 @@ server <- function(input, output, session) {
     server = TRUE
   )
   
+  selected_vaccinations <- reactiveVal(
+    tibble(
+      Impfung = character(),
+      Datum = as.Date(character())
+    )
+  )
+  
   confirmed_country <- eventReactive(input$confirm_country, {
     req(input$country)
     input$country
@@ -30,7 +37,6 @@ server <- function(input, output, session) {
       attr(fallback, "source") <- paste("Fallback CSV:", e$message)
       fallback
     })
-    
   })
   
   observeEvent(country_recommendations(), {
@@ -38,6 +44,7 @@ server <- function(input, output, session) {
     recs <- country_recommendations()
     
     available_vaccines <- recs %>%
+      filter(!is.na(disease), disease != "") %>%
       pull(disease) %>%
       unique() %>%
       sort()
@@ -50,13 +57,92 @@ server <- function(input, output, session) {
       server = TRUE
     )
     
+    selected_vaccinations(
+      tibble(
+        Impfung = character(),
+        Datum = as.Date(character())
+      )
+    )
   })
   
-  selected_vaccine_info <- reactive({
-    req(input$selected_vaccines)
+  observeEvent(input$add_vaccine, {
     
-    tibble(
-      Impfung = input$selected_vaccines
+    req(input$selected_vaccines)
+    req(input$vaccination_date)
+    
+    new_row <- tibble(
+      Impfung = input$selected_vaccines,
+      Datum = as.Date(input$vaccination_date)
+    )
+    
+    selected_vaccinations(
+      bind_rows(selected_vaccinations(), new_row) %>%
+        distinct(Impfung, .keep_all = TRUE)
+    )
+    
+    updateSelectizeInput(
+      session,
+      "selected_vaccines",
+      selected = character(0)
+    )
+  })
+  
+  observeEvent(input$delete_vaccine_row, {
+    
+    row_to_delete <- input$delete_vaccine_row
+    df <- selected_vaccinations()
+    
+    if (nrow(df) >= row_to_delete) {
+      selected_vaccinations(df[-row_to_delete, ])
+    }
+  })
+  
+  output$country_dependent_ui <- renderUI({
+    req(confirmed_country())
+    
+    tagList(
+      fluidRow(
+        
+        box(
+          width = 4,
+          title = "Reiseimpfung auswählen",
+          status = "success",
+          solidHeader = TRUE,
+          
+          selectizeInput(
+            "selected_vaccines",
+            "Impfung",
+            choices = NULL,
+            selected = NULL,
+            multiple = FALSE,
+            options = list(
+              placeholder = "Impfung eingeben",
+              maxOptions = 1000
+            )
+          ),
+          
+          dateInput(
+            "vaccination_date",
+            "Impfdatum",
+            value = Sys.Date()
+          ),
+          
+          actionButton(
+            "add_vaccine",
+            "Impfung hinzufügen",
+            icon = icon("plus"),
+            class = "btn-success"
+          )
+        ),
+        
+        box(
+          width = 8,
+          title = "Ausgewählte Impfungen",
+          status = "success",
+          solidHeader = TRUE,
+          DTOutput("vaccines_table")
+        )
+      )
     )
   })
   
@@ -75,26 +161,51 @@ server <- function(input, output, session) {
     )
   })
   
+  output$diseases_box_title <- renderUI({
+    req(confirmed_country())
+    paste("CDC Diseases / Recommendations -", confirmed_country())
+  })
+  
   output$diseases_table <- renderTable({
     req(country_recommendations())
-    country_recommendations()
-  })
-  
-  output$vaccines_table <- renderTable({
-    req(selected_vaccine_info())
-    selected_vaccine_info()
-  })
-  
-  output$vaccination_dates <- renderUI({
-    req(input$selected_vaccines)
     
-    lapply(input$selected_vaccines, function(vac) {
-      dateInput(
-        inputId = paste0("date_", make.names(vac)),
-        label = paste("Datum für", vac),
-        value = Sys.Date()
+    country_recommendations() %>%
+      select(disease, recommendation)
+  })
+  
+  output$vaccines_table <- renderDT({
+    
+    df <- selected_vaccinations()
+    
+    if (nrow(df) == 0) {
+      return(
+        datatable(
+          df,
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
       )
-    })
+    }
+    
+    df <- df %>%
+      mutate(
+        Datum = format(Datum, "%d.%m.%Y"),
+        Löschen = sprintf(
+          '<button class="btn btn-danger btn-xs" onclick="Shiny.setInputValue(\'delete_vaccine_row\', %d, {priority: \'event\'})">❌</button>',
+          seq_len(n())
+        )
+      )
+    
+    datatable(
+      df,
+      escape = FALSE,
+      selection = "none",
+      rownames = FALSE,
+      options = list(
+        dom = "t",
+        paging = FALSE
+      )
+    )
   })
   
   output$packing_table <- renderTable({
@@ -108,16 +219,47 @@ server <- function(input, output, session) {
     )
   })
   
-  output$diseases_box_title <- renderUI({
-    req(confirmed_country())
-    paste("CDC Diseases / Recommendations -", confirmed_country())
-  })
-  
-  output$diseases_table <- renderTable({
-    req(country_recommendations())
+  observeEvent(input$update_backup_csv, {
     
-    country_recommendations() %>%
-      select(disease, recommendation)
+    output$update_status <- renderUI({
+      p("Update läuft... bitte warten.")
+    })
+    
+    tryCatch({
+      
+      updated_data <- load_cdc_data()
+      
+      countries <<- updated_data$countries
+      cdc_recommendations_fallback <<- updated_data$recommendations
+      
+      updateSelectizeInput(
+        session,
+        "country",
+        choices = countries$country,
+        selected = NULL,
+        server = TRUE
+      )
+      
+      output$update_status <- renderUI({
+        tagList(
+          strong("Backup CSVs erfolgreich aktualisiert."),
+          br(),
+          p(paste("Länder geladen:", nrow(updated_data$countries))),
+          p(paste("Empfehlungen geladen:", nrow(updated_data$recommendations))),
+          p(paste("Diseases geladen:", nrow(updated_data$diseases)))
+        )
+      })
+      
+    }, error = function(e) {
+      
+      output$update_status <- renderUI({
+        tagList(
+          strong("Update fehlgeschlagen."),
+          br(),
+          p(e$message)
+        )
+      })
+    })
   })
   
   output$data_source_info <- renderUI({
