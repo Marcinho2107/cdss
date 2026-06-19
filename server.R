@@ -14,6 +14,59 @@ server <- function(input, output, session) {
     )
   )
   
+  vaccine_master <- tibble::tribble(
+    ~vaccine_pattern, ~doses_required, ~dose_interval_months, ~booster_months,
+    "covid", 3, 1, 12,
+    "chickenpox|varicella", 2, 1, 0,
+    "cholera", 2, 1, 24,
+    "diphtheria|tetanus|pertussis|dtap|tdap|td", 4, 2, 120,
+    "flu|influenza", 1, 12, 12,
+    "hepatitis a", 2, 6, 240,
+    "hepatitis b", 3, 1, 0,
+    "japanese encephalitis", 2, 1, 12,
+    "measles-mumps-rubella|mmr", 2, 1, 0,
+    "measles", 2, 1, 0,
+    "polio", 4, 2, 120,
+    "rabies", 3, 1, 24,
+    "shingles|zoster", 2, 2, 0,
+    "typhoid", 1, 0, 36,
+    "yellow fever", 1, 0, 999
+  )
+  
+  
+  add_vaccine_master_data <- function(df) {
+    
+    df %>%
+      rowwise() %>%
+      mutate(
+        match_row = list(
+          vaccine_master %>%
+            filter(str_detect(str_to_lower(disease), vaccine_pattern)) %>%
+            slice(1)
+        ),
+        doses_required = ifelse(nrow(match_row) == 0, NA_real_, match_row$doses_required),
+        dose_interval_months = ifelse(nrow(match_row) == 0, NA_real_, match_row$dose_interval_months),
+        booster_months = ifelse(nrow(match_row) == 0, NA_real_, match_row$booster_months)
+      ) %>%
+      ungroup() %>%
+      select(-match_row)
+  }
+  
+  classify_priority <- function(recommendation) {
+    
+    rec <- stringr::str_to_lower(recommendation)
+    
+    dplyr::case_when(
+      stringr::str_detect(rec, "required") ~ "required",
+      stringr::str_detect(rec, "routine vaccine|routine vaccines") ~ "recommended",
+      stringr::str_detect(rec, "recommended for most travelers") ~ "recommended",
+      stringr::str_detect(rec, "recommended for unvaccinated travelers") ~ "recommended",
+      stringr::str_detect(rec, "some travelers|consider") ~ "consider",
+      stringr::str_detect(rec, "not recommended") ~ "not_recommended",
+      TRUE ~ "info"
+    )
+  }
+  
   confirmed_country <- eventReactive(input$confirm_country, {
     req(input$country)
     input$country
@@ -115,8 +168,7 @@ server <- function(input, output, session) {
     )
     
     selected_vaccinations(
-      bind_rows(selected_vaccinations(), new_row) %>%
-        distinct(Impfung, .keep_all = TRUE)
+      bind_rows(selected_vaccinations(), new_row)
     )
     
     updateSelectizeInput(
@@ -250,6 +302,98 @@ server <- function(input, output, session) {
   output$packing_box_title <- renderUI({
     req(confirmed_country())
     paste("First Aid / Packing List -", confirmed_country())
+  })
+  
+  output$vaccine_requirements_box_title <- renderUI({
+    req(confirmed_country())
+    
+    paste0('Zusätzliche Impfungen - "', confirmed_country(), '"')
+  })
+  
+  output$vaccine_requirements_table <- renderDT({
+    req(country_recommendations())
+    
+    user_vaccines <- selected_vaccinations() %>%
+      rename(
+        disease = Impfung,
+        vaccination_date = Datum
+      ) %>%
+      group_by(disease) %>%
+      summarise(
+        doses_entered = n(),
+        last_vaccination_date = max(vaccination_date),
+        .groups = "drop"
+      )
+    
+    df <- country_recommendations() %>%
+      mutate(
+        priority = classify_priority(recommendation)
+      ) %>%
+      add_vaccine_master_data() %>%
+      group_by(disease, priority) %>%
+      summarise(
+        doses_required = first(doses_required),
+        dose_interval_months = first(dose_interval_months),
+        .groups = "drop"
+      ) %>%
+      left_join(user_vaccines, by = "disease") %>%
+      mutate(
+        doses_entered = ifelse(is.na(doses_entered), 0, doses_entered),
+        
+        fehlende_dosen = case_when(
+          is.na(doses_required) ~ NA_real_,
+          doses_entered >= doses_required ~ 0,
+          TRUE ~ doses_required - doses_entered
+        ),
+        
+        naechste_dosis_ab = case_when(
+          doses_entered == 0 ~ Sys.Date(),
+          fehlende_dosen > 0 ~ last_vaccination_date %m+% months(dose_interval_months),
+          TRUE ~ as.Date(NA)
+        ),
+        
+        priority_order = case_when(
+          priority == "required" ~ 1,
+          priority == "recommended" ~ 2,
+          priority == "consider" ~ 3,
+          TRUE ~ 4
+        )
+      ) %>%
+      filter(is.na(fehlende_dosen) | fehlende_dosen > 0) %>%
+      arrange(priority_order, disease) %>%
+      select(
+        priority_order,
+        disease,
+        priority,
+        doses_required,
+        doses_entered,
+        fehlende_dosen,
+        naechste_dosis_ab
+      )
+    
+    datatable(
+      df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        order = list(list(0, "asc")),
+        columnDefs = list(
+          list(
+            targets = 0,
+            visible = FALSE
+          )
+        )
+      )
+    ) %>%
+      formatStyle(
+        "priority",
+        target = "row",
+        backgroundColor = styleEqual(
+          c("required", "recommended", "consider", "info", "not_recommended"),
+          c("#f8d7da", "#fff3cd", "#d1ecf1", "#d1ecf1", "#d1ecf1")
+        )
+      )
   })
   
   output$packing_checklist <- renderUI({

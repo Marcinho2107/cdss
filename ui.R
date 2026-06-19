@@ -70,6 +70,17 @@ dashboardPage(
       
       tabItem(
         tabName = "diseases",
+        
+        fluidRow(
+          box(
+            width = 12,
+            title = uiOutput("vaccine_requirements_box_title"),
+            status = "success",
+            solidHeader = TRUE,
+            DTOutput("vaccine_requirements_table")
+          )
+        ),
+        
         fluidRow(
           box(
             width = 12,

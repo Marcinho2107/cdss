@@ -9,6 +9,7 @@ library(tibble)
 library(DT)
 library(httr)
 library(htmltools)
+library(lubridate)
 
 countries_file <- "cdc_countries.csv"
 recommendations_file <- "cdc_all_countries_recommendations.csv"
