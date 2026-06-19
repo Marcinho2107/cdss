@@ -19,6 +19,13 @@ server <- function(input, output, session) {
     input$country
   })
   
+  output$header_destination <- renderUI({
+    req(confirmed_country())
+    tags$span(
+      paste0('Reiseziel: ', confirmed_country(), '')
+    )
+  })
+  
   country_recommendations <- eventReactive(input$confirm_country, {
     req(input$country)
     
@@ -176,27 +183,40 @@ server <- function(input, output, session) {
   output$cdss_output <- renderUI({
     req(confirmed_country())
     
-    recs <- country_recommendations()
-    nvp <- non_vaccine_diseases()
-    pack <- packing_list()
-    
     tagList(
-      h4("Ausgewähltes Reiseziel:"),
-      strong(confirmed_country()),
-      br(),
-      br(),
-      p(paste("Anzahl geladener CDC-Empfehlungen:", nrow(recs))),
-      p(paste("Non-Vaccine-Preventable Diseases:", nrow(nvp))),
-      p(paste("Packing List Items:", nrow(pack))),
-      p(paste("Datenquelle:", attr(recs, "source"))),
-      p(paste("Non-Vaccine Source:", attr(nvp, "source"))),
-      p(paste("Packing List Source:", attr(pack, "source")))
+      p(
+        "Die Eingabe personenbezogener Daten ist optional.",
+        style = "font-weight:bold; color:#666;"
+      ),
+      
+      textInput(
+        "patient_name",
+        "Name",
+        placeholder = "Name eingeben (optional)"
+      ),
+      
+      textInput(
+        "svnr",
+        "Sozialversicherungsnummer",
+        placeholder = "SVNR eingeben (optional)"
+      )
     )
   })
   
   output$diseases_box_title <- renderUI({
     req(confirmed_country())
     paste("CDC Diseases / Recommendations -", confirmed_country())
+  })
+  
+  output$selected_country_text <- renderUI({
+    
+    req(confirmed_country())
+    
+    tagList(
+      h4("Ausgewähltes Reiseziel:"),
+      strong(confirmed_country())
+    )
+    
   })
   
   output$diseases_table <- renderTable({
@@ -359,6 +379,18 @@ server <- function(input, output, session) {
       writeLines(html, file, useBytes = TRUE)
     }
   )
+  
+  output$personal_data_box <- renderUI({
+    req(confirmed_country())
+    
+    box(
+      width = 8,
+      title = "Personenbezogene Daten",
+      status = "primary",
+      solidHeader = TRUE,
+      uiOutput("cdss_output")
+    )
+  })
   
   output$vaccines_table <- renderDT({
     df <- selected_vaccinations()

@@ -1,7 +1,22 @@
 dashboardPage(
   
   dashboardHeader(
-    title = "Travel CDSS"),
+    title = "Travel CDSS",
+    
+    tags$li(
+      class = "dropdown",
+      style = "
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      top:15px;
+      color:white;
+      font-size:18px;
+      list-style:none;
+    ",
+      uiOutput("header_destination", inline = TRUE)
+    )
+  ),
   
   dashboardSidebar(
     sidebarMenu(
@@ -39,16 +54,15 @@ dashboardPage(
               "Land bestätigen",
               icon = icon("check"),
               class = "btn-primary"
-            )
+            ),
+            
+            br(),
+            br(),
+            
+            uiOutput("selected_country_text")
           ),
           
-          box(
-            width = 8,
-            title = "CDSS Output",
-            status = "primary",
-            solidHeader = TRUE,
-            uiOutput("cdss_output")
-          )
+          uiOutput("personal_data_box")
         ),
         
         uiOutput("country_dependent_ui")
