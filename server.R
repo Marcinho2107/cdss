@@ -9,8 +9,8 @@ server <- function(input, output, session) {
   
   selected_vaccinations <- reactiveVal(
     tibble(
-      Vaccination = character(),
-      Date = as.Date(character())
+      Impfung = character(),
+      Datum = as.Date(character())
     )
   )
   
@@ -92,8 +92,8 @@ server <- function(input, output, session) {
     
     selected_vaccinations(
       tibble(
-        Vaccination = character(),
-        Date = as.Date(character())
+        Impfung = character(),
+        Datum = as.Date(character())
       )
     )
   })
@@ -103,13 +103,13 @@ server <- function(input, output, session) {
     req(input$vaccination_date)
     
     new_row <- tibble(
-      Vaccination = input$selected_vaccines,
-      Date = as.Date(input$vaccination_date)
+      Impfung = input$selected_vaccines,
+      Datum = as.Date(input$vaccination_date)
     )
     
     selected_vaccinations(
       bind_rows(selected_vaccinations(), new_row) %>%
-        distinct(Vaccination, .keep_all = TRUE)
+        distinct(Impfung, .keep_all = TRUE)
     )
     
     updateSelectizeInput(
@@ -135,28 +135,28 @@ server <- function(input, output, session) {
       fluidRow(
         box(
           width = 4,
-          title = "Select Vaccination",
+          title = "Reiseimpfung auswählen",
           status = "success",
           solidHeader = TRUE,
           selectizeInput(
             "selected_vaccines",
-            "Vaccination",
+            "Impfung",
             choices = NULL,
             selected = NULL,
             multiple = FALSE,
             options = list(
-              placeholder = "Enter vaccination",
+              placeholder = "Impfung eingeben",
               maxOptions = 1000
             )
           ),
           dateInput(
             "vaccination_date",
-            "Vaccination Date",
+            "Impfdatum",
             value = Sys.Date()
           ),
           actionButton(
             "add_vaccine",
-            "Add Vaccination",
+            "Impfung hinzufügen",
             icon = icon("plus"),
             class = "btn-success"
           )
@@ -164,7 +164,7 @@ server <- function(input, output, session) {
         
         box(
           width = 8,
-          title = "Selected Vaccinations",
+          title = "Ausgewählte Impfungen",
           status = "success",
           solidHeader = TRUE,
           DTOutput("vaccines_table")
@@ -181,14 +181,14 @@ server <- function(input, output, session) {
     pack <- packing_list()
     
     tagList(
-      h4("Selected Destination:"),
+      h4("Ausgewähltes Reiseziel:"),
       strong(confirmed_country()),
       br(),
       br(),
-      p(paste("CDC Recommendations Loaded:", nrow(recs))),
+      p(paste("Anzahl geladener CDC-Empfehlungen:", nrow(recs))),
       p(paste("Non-Vaccine-Preventable Diseases:", nrow(nvp))),
       p(paste("Packing List Items:", nrow(pack))),
-      p(paste("CDC Source:", attr(recs, "source"))),
+      p(paste("Datenquelle:", attr(recs, "source"))),
       p(paste("Non-Vaccine Source:", attr(nvp, "source"))),
       p(paste("Packing List Source:", attr(pack, "source")))
     )
@@ -375,8 +375,8 @@ server <- function(input, output, session) {
     
     df <- df %>%
       mutate(
-        Date = format(Date, "%d.%m.%Y"),
-        Delete = sprintf(
+        Datum = format(Datum, "%d.%m.%Y"),
+        Löschen = sprintf(
           '<button class="btn btn-danger btn-xs" onclick="Shiny.setInputValue(\'delete_vaccine_row\', %d, {priority: \'event\'})">❌</button>',
           seq_len(n())
         )
@@ -394,12 +394,55 @@ server <- function(input, output, session) {
     )
   })
   
+  observeEvent(input$update_backup_csv, {
+    
+    output$update_status <- renderUI({
+      p("Update läuft... bitte warten.")
+    })
+    
+    tryCatch({
+      
+      updated_data <- load_cdc_data()
+      
+      countries <<- updated_data$countries
+      cdc_recommendations_fallback <<- updated_data$recommendations
+      
+      updateSelectizeInput(
+        session,
+        "country",
+        choices = countries$country,
+        selected = NULL,
+        server = TRUE
+      )
+      
+      output$update_status <- renderUI({
+        tagList(
+          strong("Backup CSVs erfolgreich aktualisiert."),
+          br(),
+          p(paste("Länder geladen:", nrow(updated_data$countries))),
+          p(paste("Empfehlungen geladen:", nrow(updated_data$recommendations))),
+          p(paste("Diseases geladen:", nrow(updated_data$diseases)))
+        )
+      })
+      
+    }, error = function(e) {
+      
+      output$update_status <- renderUI({
+        tagList(
+          strong("Update fehlgeschlagen."),
+          br(),
+          p(e$message)
+        )
+      })
+    })
+  })
+  
   output$data_source_info <- renderUI({
     tagList(
-      p("Current data source: CDC web scraper with CSV fallback."),
-      p(paste("Countries loaded:", nrow(countries))),
-      p(paste("Fallback recommendations loaded:", nrow(cdc_recommendations_fallback))),
-      p(paste("Vaccinations loaded:", nrow(vaccines_master))),
+      p("Aktuelle Datenquelle: CDC Webscraper mit CSV-Fallback"),
+      p(paste("Länder geladen:", nrow(countries))),
+      p(paste("Fallback-Empfehlungen geladen:", nrow(cdc_recommendations_fallback))),
+      p(paste("Impfungen geladen:", nrow(vaccines_master))),
       p(paste("Non-vaccine fallback rows loaded:", nrow(non_vaccine_fallback))),
       p(paste("Packing-list fallback rows loaded:", nrow(packing_fallback)))
     )

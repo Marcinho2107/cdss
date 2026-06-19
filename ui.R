@@ -1,6 +1,7 @@
 dashboardPage(
   
-  dashboardHeader(title = "Travel CDSS"),
+  dashboardHeader(
+    title = "Travel CDSS"),
   
   dashboardSidebar(
     sidebarMenu(
@@ -8,7 +9,7 @@ dashboardPage(
       menuItem("CDC Diseases / Recommendations", tabName = "diseases", icon = icon("virus")),
       menuItem("Non-Vaccine-Preventable Diseases", tabName = "non_vaccine", icon = icon("briefcase-medical")),
       menuItem("First Aid / Packing List", tabName = "packing", icon = icon("kit-medical")),
-      menuItem("Information", tabName = "info", icon = icon("book"))
+      menuItem("Information / Update", tabName = "info", icon = icon("book"))
     )
   ),
   
@@ -20,22 +21,22 @@ dashboardPage(
         fluidRow(
           box(
             width = 4,
-            title = "Destination Selection",
+            title = "Landauswahl",
             status = "primary",
             solidHeader = TRUE,
             selectizeInput(
               "country",
-              "Travel Destination",
+              "Reiseziel",
               choices = NULL,
               selected = NULL,
               options = list(
-                placeholder = "Enter destination",
+                placeholder = "Land eingeben",
                 maxOptions = 1000
               )
             ),
             actionButton(
               "confirm_country",
-              "Confirm Destination",
+              "Land bestätigen",
               icon = icon("check"),
               class = "btn-primary"
             )
@@ -108,8 +109,18 @@ dashboardPage(
             status = "primary",
             solidHeader = TRUE,
             h4("Travel Medicine CDSS"),
-            p("This system is based on CDC travel data."),
-            uiOutput("data_source_info")
+            p("Dieses System basiert auf CDC-Reisedaten."),
+            uiOutput("data_source_info"),
+            br(),
+            actionButton(
+              "update_backup_csv",
+              "Backup CSVs aktualisieren",
+              icon = icon("sync"),
+              class = "btn-warning"
+            ),
+            br(),
+            br(),
+            uiOutput("update_status")
           )
         )
       )
