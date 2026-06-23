@@ -14,7 +14,6 @@ server <- function(input, output, session) {
     )
   )
   
-<<<<<<< HEAD
   vaccine_master <- tibble::tribble(
     ~vaccine_pattern, ~doses_required, ~dose_interval_months, ~booster_months,
     "covid", 3, 1, 12,
@@ -67,7 +66,7 @@ server <- function(input, output, session) {
       TRUE ~ "info"
     )
   }
-=======
+  
   patient_data <- reactiveVal(
     list(
       name = "",
@@ -77,7 +76,7 @@ server <- function(input, output, session) {
   
   patient_message <- reactiveVal("")
   patient_message_type <- reactiveVal("")
->>>>>>> 76dbf2e9c86ed15f2014a8588860c8cb42d27497
+  
   
   confirmed_country <- eventReactive(input$confirm_country, {
     req(input$country)
@@ -287,12 +286,8 @@ server <- function(input, output, session) {
     )
     
     selected_vaccinations(
-<<<<<<< HEAD
-      bind_rows(selected_vaccinations(), new_row)
-=======
       bind_rows(selected_vaccinations(), new_row) %>%
         distinct(Vaccination, .keep_all = TRUE)
->>>>>>> 76dbf2e9c86ed15f2014a8588860c8cb42d27497
     )
     
     updateSelectizeInput(
@@ -405,8 +400,8 @@ server <- function(input, output, session) {
     
     user_vaccines <- selected_vaccinations() %>%
       rename(
-        disease = Impfung,
-        vaccination_date = Datum
+        disease = Vaccination,
+        vaccination_date = Date
       ) %>%
       group_by(disease) %>%
       summarise(
@@ -723,7 +718,7 @@ server <- function(input, output, session) {
       p("Current data source: CDC web scraper with CSV fallback."),
       p(paste("Countries loaded:", nrow(countries))),
       p(paste("Fallback recommendations loaded:", nrow(cdc_recommendations_fallback))),
-      p(paste("Vaccinations loaded:", nrow(vaccines_master))),
+      p(paste("Vaccinations loaded:", nrow(vaccine_master))),
       p(paste("Non-vaccine fallback rows loaded:", nrow(non_vaccine_fallback))),
       p(paste("Packing-list fallback rows loaded:", nrow(packing_fallback)))
     )
