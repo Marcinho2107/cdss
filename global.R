@@ -18,6 +18,41 @@ vaccines_file <- "reiseimpfungen.csv"
 non_vaccine_file <- "cdc_non_vaccine_diseases_FULL.csv"
 packing_file <- "cdc_packing_lists_ALL_COUNTRIES.csv"
 
+safe_filename_part <- function(x) {
+  x %>%
+    str_squish() %>%
+    str_replace_all("[^A-Za-z0-9]+", "_") %>%
+    str_replace_all("_+", "_") %>%
+    str_replace_all("^_|_$", "")
+}
+
+get_country_url <- function(country_name) {
+  country_row <- countries %>%
+    filter(country == country_name) %>%
+    slice(1)
+  
+  if (nrow(country_row) == 0) {
+    return(NA_character_)
+  }
+  
+  country_row$full_url[1]
+}
+
+get_packing_url <- function(country_name) {
+  country_slug <- country_name %>%
+    str_to_lower() %>%
+    str_replace_all("&", "and") %>%
+    str_replace_all("[^a-z0-9 ]", "") %>%
+    str_squish() %>%
+    str_replace_all(" ", "-")
+  
+  paste0(
+    "https://wwwnc.cdc.gov/travel/destinations/",
+    country_slug,
+    "/traveler/packing-list"
+  )
+}
+
 load_cdc_data <- function() {
   
   base_url <- "https://wwwnc.cdc.gov"
@@ -190,7 +225,7 @@ scrape_country_recommendations <- function(country_name) {
     slice(1)
   
   if (nrow(country_row) == 0) {
-    stop("Land nicht in cdc_countries.csv gefunden.")
+    stop("Country not found in cdc_countries.csv.")
   }
   
   url <- country_row$full_url[1]
@@ -244,7 +279,7 @@ scrape_country_recommendations <- function(country_name) {
   })
   
   if (nrow(result) == 0) {
-    stop("Keine CDC-Empfehlungen gefunden.")
+    stop("No CDC recommendations found.")
   }
   
   result
@@ -303,18 +338,7 @@ scrape_non_vaccine_diseases <- function(country_name) {
 
 scrape_packing_list <- function(country_name) {
   
-  country_slug <- country_name %>%
-    str_to_lower() %>%
-    str_replace_all("&", "and") %>%
-    str_replace_all("[^a-z0-9 ]", "") %>%
-    str_squish() %>%
-    str_replace_all(" ", "-")
-  
-  url <- paste0(
-    "https://wwwnc.cdc.gov/travel/destinations/",
-    country_slug,
-    "/traveler/packing-list"
-  )
+  url <- get_packing_url(country_name)
   
   response <- GET(
     url,
